@@ -3,6 +3,8 @@ package redfi
 import (
 	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSelectRule(t *testing.T) {
@@ -76,4 +78,67 @@ func TestAddDeleteGetRule(t *testing.T) {
 	}
 	fmt.Println(fetchedRule)
 
+}
+
+func TestCommandFaultInjection(t *testing.T) {
+	var testCases = []struct {
+		description  string
+		clientAddr   string
+		rule         Rule
+		redisCommand []byte
+		expectedRule Rule
+	}{
+		{
+			description: "success case: match command (upper case) and return the expected rule",
+			clientAddr:  "192.0.0.1",
+			rule: Rule{
+				Name:       "Invalid Key",
+				ReturnErr:  "ERR_INVALID_KEY",
+				Command:    "GET",
+				Percentage: 100,
+			},
+			redisCommand: []byte("\r\nGET\r\nkey1"),
+			expectedRule: Rule{
+				Name:         "Invalid Key",
+				ReturnErr:    "ERR_INVALID_KEY",
+				Command:      "GET",
+				Percentage:   100,
+				marshaledCmd: marshalCommand("GET"),
+				hits:         1,
+			},
+		},
+		{
+			description: "success case: match command (lower case) and return the expected rule",
+			clientAddr:  "192.0.0.1",
+			rule: Rule{
+				Name:       "Inject delay",
+				Delay:      5000,
+				Command:    "GET",
+				Percentage: 100,
+			},
+			redisCommand: []byte("\r\nget\r\nkey1"),
+			expectedRule: Rule{
+				Name:         "Inject delay",
+				Delay:        5000,
+				Command:      "GET",
+				Percentage:   100,
+				marshaledCmd: marshalCommand("GET"),
+				hits:         1,
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Logf("running test case: %v", testCase.description)
+
+		plan := NewPlan()
+
+		err := plan.AddRule(testCase.rule)
+		if err != nil {
+			t.Fatalf("error adding rule: %v", err.Error())
+		}
+
+		actualRule := plan.SelectRule(testCase.clientAddr, testCase.redisCommand)
+		assert.Equal(t, *actualRule, testCase.expectedRule)
+	}
 }
