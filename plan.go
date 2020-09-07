@@ -1,7 +1,6 @@
 package redfi
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -155,14 +154,14 @@ func (p *Plan) SelectRule(clientAddr string, buf []byte) *Rule {
 			continue
 		}
 
-		if len(rule.Command) > 0 && !bytes.Contains(buf, rule.marshaledCmd) {
+		if len(rule.Command) > 0 && !strings.Contains(strings.ToUpper(string(buf)), string(rule.marshaledCmd)) {
 			continue
 		}
 
 		chosenRule = rule
 		break
-
 	}
+
 	if chosenRule == nil {
 		return nil
 	}
